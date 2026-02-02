@@ -1,14 +1,101 @@
 # decc0 Web Interface
 
-Interactive web interface for the decc0 Soul & Identity Loader. Chat with 10,000 unique AI characters from the MOCA Codex.
+A beautiful terminal-style UI (TUI) for chatting with 10,000 unique AI personalities from the MOCA Codex. Navigate entirely with your keyboard, or use mouse and touch - the interface adapts to your preferred input method.
+
+## The Experience
+
+When you launch the interface, you're greeted with a clean welcome screen. The entire app flows through keyboard shortcuts, but every action is also accessible via mouse clicks or touch.
+
+### Your First Session
+
+1. **Press `Ctrl+R`** to load a random soul - the app fetches a character from the MOCA Codex
+2. Watch as the soul's **avatar**, **identity card**, and **full codex** stream onto your screen
+3. **Type a message** and press `Enter` to start chatting
+4. **Press `Tab`** to cycle through quick prompts like "Tell me about yourself"
+5. **Press `Ctrl+D`** to download the soul's files (SOUL.md, IDENTITY.md, avatar.jpg)
+
+### Scroll Modes
+
+The interface has two scroll modes, visible in the status bar:
+
+- **`[A] Auto`** - Default mode. The chat auto-scrolls as new content arrives
+- **`[E] Explore`** - Browse previous messages while the AI continues generating
+
+Switch modes by:
+- Scrolling up (enters Explore mode)
+- Scrolling to bottom (returns to Auto mode)  
+- Pressing `A` or `E` keys
+- Clicking the mode button in the status bar
+
+## Keyboard Shortcuts
+
+### Commands (work anywhere)
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+Space` | Open command palette |
+| `Ctrl+R` | Load random soul |
+| `Ctrl+I` | Load soul by ID or name |
+| `Ctrl+P` | Print codex for a soul ID |
+| `Ctrl+S` | Search souls |
+| `Ctrl+K` | List souls |
+| `Ctrl+D` | Download soul package |
+| `Ctrl+X` | Clear session (reset chat) |
+| `Escape` | Close any modal/palette |
+
+### Navigation (when not typing)
+
+| Key | Action |
+|-----|--------|
+| `H` | Show help |
+| `A` | Switch to Auto-scroll mode |
+| `E` | Switch to Explore mode |
+
+### In Chat Input
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Send message |
+| `Tab` | Cycle through quick prompts |
+
+### In Command Palette
+
+| Key | Action |
+|-----|--------|
+| `Up/Down` | Navigate commands |
+| `Enter` | Execute selected command |
+| `Escape` | Close palette |
+
+### In Download Modal
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Download ZIP |
+| `Escape` | Cancel |
 
 ## Features
 
-- **Telegram-style chat interface** - Clean, modern messaging UI
-- **Command dropdown** - Easy access to `/decc0` commands
-- **Soul loader** - Load random souls, by ID, or search by name
-- **Live LLM integration** - Connect to any OpenAI-compatible API
-- **Multi-provider support** - LiteLLM, vLLM, Compute3, Venice, OpenAI, Anthropic, Ollama
+### Command Palette
+Press `Ctrl+Space` to open a searchable command palette. Type to filter commands, use arrow keys to navigate, and press Enter to execute.
+
+### Soul Loading
+Load souls three ways:
+- **Random**: `Ctrl+R` picks a soul from 1-9999
+- **By ID**: `Ctrl+I` then enter a number (e.g., `42`)
+- **By Name**: `Ctrl+I` then enter a name (e.g., `Parvata`)
+
+### Download Soul Package
+Press `Ctrl+D` or click the `[D] Download` button to open the download modal:
+- Click individual files (`SOUL.md`, `IDENTITY.md`, `avatar.jpg`) to download separately
+- Press `Enter` to download all files as a ZIP
+
+### Session Management
+- `Ctrl+X` clears all messages and resets the session
+- The dialogue history (last 10 messages) is maintained for context
+- Command executions are logged but their verbose output isn't sent to the LLM
+
+### Streaming Text
+All content streams character-by-character with a blinking cursor, giving the authentic terminal feel.
 
 ## Quick Start
 
@@ -21,224 +108,90 @@ npm install
 
 ### 2. Configure LLM Provider
 
-Copy the environment example and configure your provider:
-
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` to set your preferred LLM provider:
+Edit `.env`:
 
 ```bash
-# Choose your provider
 LLM_PROVIDER=openai
-
-# Add your API key
 OPENAI_API_KEY=sk-...
 ```
 
 ### 3. Start the Application
 
-**Development mode** (with hot reload):
-
 ```bash
-# Terminal 1: Start the backend server
+# Terminal 1: Backend server
 npm run dev:server
 
-# Terminal 2: Start the frontend
+# Terminal 2: Frontend
 npm run dev
 ```
 
-Or run both together:
+Or run both:
 
 ```bash
 npm run dev:all
 ```
 
-**Production mode**:
+### 4. Open Browser
 
-```bash
-npm run build
-npm start
-```
+Visit [http://localhost:5173](http://localhost:5173)
 
-### 4. Open in Browser
+## LLM Providers
 
-Visit [http://localhost:5173](http://localhost:5173) to start chatting!
+Set `LLM_PROVIDER` in `.env`:
 
-## LLM Provider Configuration
-
-The web interface supports multiple LLM providers. Set `LLM_PROVIDER` in your `.env` file:
-
-### LiteLLM (Recommended)
-
-Universal LLM proxy that supports 100+ providers.
-
-```bash
-LLM_PROVIDER=litellm
-LITELLM_BASE_URL=http://localhost:4000
-LITELLM_API_KEY=your-key
-LITELLM_MODEL=gpt-3.5-turbo
-```
-
-### vLLM
-
-Self-hosted inference server.
-
-```bash
-LLM_PROVIDER=vllm
-VLLM_BASE_URL=http://localhost:8000
-VLLM_MODEL=meta-llama/Llama-2-7b-chat-hf
-```
-
-### Compute3
-
-GPU cloud with LLM API.
-
-```bash
-LLM_PROVIDER=compute3
-COMPUTE3_API_KEY=your-key
-COMPUTE3_MODEL=deepseek-v3.1
-```
-
-### Venice
-
-Privacy-focused AI.
-
-```bash
-LLM_PROVIDER=venice
-VENICE_API_KEY=your-key
-VENICE_MODEL=llama-3.3-70b
-```
-
-### OpenAI
-
-```bash
-LLM_PROVIDER=openai
-OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-4o-mini
-```
-
-### Anthropic
-
-```bash
-LLM_PROVIDER=anthropic
-ANTHROPIC_API_KEY=sk-ant-...
-ANTHROPIC_MODEL=claude-3-haiku-20240307
-```
-
-### Ollama (Local)
-
-```bash
-LLM_PROVIDER=ollama
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=llama2
-```
-
-## Commands
-
-The interface supports these commands (also available via dropdown):
-
-| Command | Description |
-|---------|-------------|
-| `/decc0 load` | Load a random soul |
-| `/decc0 load 42` | Load soul by ID |
-| `/decc0 load Parvata` | Load soul by name |
-| `/decc0 list` | List available souls |
-| `/decc0 search curator` | Search souls |
+| Provider | Variables |
+|----------|-----------|
+| `litellm` | `LITELLM_BASE_URL`, `LITELLM_API_KEY`, `LITELLM_MODEL` |
+| `vllm` | `VLLM_BASE_URL`, `VLLM_API_KEY`, `VLLM_MODEL` |
+| `compute3` | `COMPUTE3_API_KEY`, `COMPUTE3_MODEL` |
+| `venice` | `VENICE_API_KEY`, `VENICE_MODEL` |
+| `openai` | `OPENAI_API_KEY`, `OPENAI_MODEL` |
+| `anthropic` | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` |
+| `ollama` | `OLLAMA_BASE_URL`, `OLLAMA_MODEL` |
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        Browser                               │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │           Vue.js + Tailwind CSS Frontend            │    │
-│  │                 (localhost:5173)                     │    │
-│  └─────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Express.js Backend                        │
-│                     (localhost:3001)                         │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │  /api/chat    → LLM Provider (OpenAI-compatible)    │    │
-│  │  /api/health  → Health check                         │    │
-│  │  /api/provider → Current provider info               │    │
-│  └─────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────┘
-                              │
-              ┌───────────────┴───────────────┐
-              ▼                               ▼
-┌─────────────────────────┐     ┌─────────────────────────┐
-│    MOCA Codex API       │     │     LLM Provider        │
-│  api.decc0s.com         │     │  (OpenAI/Anthropic/     │
-│                         │     │   LiteLLM/vLLM/etc)     │
-│  - Load souls           │     │                         │
-│  - Search/filter        │     │  - Chat completions     │
-│  - Get avatars          │     │  - Streaming support    │
-└─────────────────────────┘     └─────────────────────────┘
+Browser (Vue.js + TUI CSS)
+         │
+         ▼
+Express.js Backend (:3001)
+    │         │
+    ▼         ▼
+MOCA Codex   LLM Provider
+(souls)      (chat)
 ```
 
-## API Endpoints
-
-### Backend Server (localhost:3001)
+### API Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/health` | GET | Health check with provider info |
-| `/api/provider` | GET | Current LLM provider configuration |
-| `/api/chat` | POST | Send message to LLM with soul context |
+| `/api/health` | GET | Health check |
+| `/api/provider` | GET | Current LLM config |
+| `/api/chat` | POST | Send message with soul context |
 
-### Chat Request
-
-```bash
-curl -X POST http://localhost:3001/api/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "message": "Hello! Who are you?",
-    "soul": "# SOUL.md — Parvata\n\nYou are Parvata...",
-    "identity": "# IDENTITY.md\n\nName: Parvata\nEmoji: 🌊",
-    "history": []
-  }'
-```
-
-## Development
-
-### Project Structure
+## Project Structure
 
 ```
 web/
 ├── src/
-│   ├── App.vue          # Main chat interface
-│   ├── main.js          # Vue app entry
-│   └── style.css        # Tailwind + custom styles
-├── server.js            # Express backend
-├── .env.example         # Environment template
-├── tailwind.config.js   # Tailwind configuration
-├── vite.config.js       # Vite configuration
+│   ├── App.vue      # Main TUI interface
+│   ├── main.js      # Vue entry
+│   └── style.css    # TUI theme
+├── server.js        # Express backend
+├── .env.example     # Config template
 └── package.json
-```
-
-### Building for Production
-
-```bash
-# Build frontend
-npm run build
-
-# The built files are in ./dist
-# Serve with any static file server
-
-# Start backend
-npm start
 ```
 
 ## Related
 
-- [MOCA Codex Docs](https://docs.decc0s.com) - Soul database documentation
-- [decc0 Skill](../skills/decc0/SKILL.md) - Agent skill definition
-- [Open Soul Protocol](../skills/decc0/protocol.md) - OSP specification
+- [MOCA Codex Docs](https://docs.decc0s.com)
+- [decc0 Skill](../skills/decc0/SKILL.md)
+- [Open Soul Protocol](../skills/decc0/protocol.md)
 
 ## License
 
