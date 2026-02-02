@@ -3,6 +3,7 @@ import { ref, onMounted, nextTick, computed, watch, onUnmounted } from 'vue'
 
 // State
 const messages = ref([])
+const dialogueMessages = ref([]) // Clean dialogue log - only user/assistant + command names
 const inputMessage = ref('')
 const isLoading = ref(false)
 const currentSoul = ref(null)
@@ -19,15 +20,20 @@ const commandInputRef = ref(null)
 const streamingMessage = ref('')
 const isStreaming = ref(false)
 
+// Download modal state
+const showDownloadModal = ref(false)
+const downloadFocusRef = ref(null)
+
 // Commands with keyboard shortcuts
 const commands = [
-  { id: 'load-random', label: 'Load Random Soul', shortcut: 'Ctrl+L', action: 'load', icon: '?' },
+  { id: 'load-random', label: 'Load Random Soul', shortcut: 'Ctrl+R', action: 'load', icon: '?' },
   { id: 'load-id', label: 'Load Soul by ID', shortcut: 'Ctrl+I', action: 'load-id', icon: '#' },
   { id: 'print-codex', label: 'Print Codex by Soul ID', shortcut: 'Ctrl+P', action: 'print-codex', icon: '@' },
   { id: 'search', label: 'Search Souls', shortcut: 'Ctrl+S', action: 'search', icon: '/' },
   { id: 'list', label: 'List Souls', shortcut: 'Ctrl+K', action: 'list', icon: '=' },
+  { id: 'download', label: 'Download Soul Package', shortcut: 'Ctrl+D', action: 'download', icon: 'D' },
   { id: 'clear', label: 'Clear Chat', shortcut: 'Ctrl+X', action: 'clear', icon: 'x' },
-  { id: 'help', label: 'Show Help', shortcut: '?', action: 'help', icon: 'i' },
+  { id: 'help', label: 'Show Help', shortcut: 'H', action: 'help', icon: 'i' },
 ]
 
 // Prompts (quick message templates)
@@ -58,15 +64,60 @@ watch(commandSearch, () => {
   selectedCommandIndex.value = 0
 })
 
-// Scroll to bottom smoothly
-const scrollToBottom = async () => {
-  await nextTick()
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTo({
-      top: messagesContainer.value.scrollHeight,
-      behavior: 'smooth'
-    })
+// Scroll mode state - global toggle
+const scrollMode = ref('auto') // 'auto' or 'explore'
+let scrollRAF = null
+
+// Check if user is at the bottom of the scroll container
+const checkIfAtBottom = () => {
+  if (!messagesContainer.value) return true
+  const { scrollTop, scrollHeight, clientHeight } = messagesContainer.value
+  return scrollHeight - scrollTop - clientHeight < 50
+}
+
+// Handle user scroll - detect mode changes
+const handleScroll = () => {
+  if (!messagesContainer.value) return
+  
+  const atBottom = checkIfAtBottom()
+  
+  if (atBottom && scrollMode.value === 'explore') {
+    // User scrolled to bottom - reactivate auto-scroll
+    scrollMode.value = 'auto'
+  } else if (!atBottom && scrollMode.value === 'auto') {
+    // User scrolled up - enter explore mode
+    scrollMode.value = 'explore'
   }
+}
+
+// Toggle scroll mode manually
+const toggleScrollMode = () => {
+  if (scrollMode.value === 'auto') {
+    scrollMode.value = 'explore'
+  } else {
+    scrollMode.value = 'auto'
+    scrollToBottom(true)
+  }
+}
+
+// Scroll to bottom with RAF for smooth, non-janky scrolling
+const scrollToBottom = async (immediate = false) => {
+  await nextTick()
+  if (!messagesContainer.value) return
+  
+  // Only auto-scroll if in auto mode (or forced immediate)
+  if (scrollMode.value === 'explore' && !immediate) return
+  
+  // Cancel any pending scroll
+  if (scrollRAF) {
+    cancelAnimationFrame(scrollRAF)
+  }
+  
+  scrollRAF = requestAnimationFrame(() => {
+    if (messagesContainer.value) {
+      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+    }
+  })
 }
 
 // Add message with optional streaming effect
@@ -88,17 +139,25 @@ const streamText = async (text, msgId) => {
   isStreaming.value = true
   const msg = messages.value.find(m => m.id === msgId)
   if (!msg) return
-
-  const chars = text.split('')
+  
+  // Stream in larger chunks for smoother rendering
+  const chunkSize = 8
   msg.content = ''
   
-  for (let i = 0; i < chars.length; i++) {
-    msg.content += chars[i]
-    if (i % 3 === 0) {
-      await new Promise(r => setTimeout(r, 10))
+  for (let i = 0; i < text.length; i += chunkSize) {
+    msg.content = text.slice(0, i + chunkSize)
+    
+    // Only scroll occasionally, not every chunk (respects scroll mode)
+    if (i % 40 === 0) {
       scrollToBottom()
     }
+    
+    await new Promise(r => setTimeout(r, 12))
   }
+  
+  // Ensure final content is complete
+  msg.content = text
+  scrollToBottom()
   
   isStreaming.value = false
 }
@@ -106,6 +165,151 @@ const streamText = async (text, msgId) => {
 // Format data beautifully for display
 const formatDataMessage = (data) => {
   return data
+}
+
+// Add to dialogue log (clean conversation history)
+const addToDialogue = (content, type, commandName = null) => {
+  if (type === 'user' || type === 'assistant') {
+    dialogueMessages.value.push({
+      role: type === 'user' ? 'user' : 'assistant',
+      content,
+      timestamp: new Date().toISOString()
+    })
+  } else if (commandName) {
+    // Log command execution (name only, not results)
+    dialogueMessages.value.push({
+      role: 'system',
+      content: `[Command: ${commandName}]`,
+      timestamp: new Date().toISOString()
+    })
+  }
+}
+
+// Download individual file
+const downloadFile = (filename, content, mimeType = 'text/markdown') => {
+  if (!content) {
+    addMessage(`${filename} not available for this soul`, 'system')
+    return
+  }
+  
+  const blob = new Blob([content], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  addMessage(`Downloaded: ${filename}`, 'system')
+}
+
+// Download individual files
+const downloadSoulMd = () => {
+  downloadFile('SOUL.md', currentSoul.value?.soulContent)
+}
+
+const downloadIdentityMd = () => {
+  downloadFile('IDENTITY.md', currentSoul.value?.identityContent)
+}
+
+const downloadAvatar = async () => {
+  if (!currentSoul.value?.avatar) {
+    addMessage('Avatar not available for this soul', 'system')
+    return
+  }
+  
+  try {
+    const response = await fetch(currentSoul.value.avatar)
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'avatar.jpg'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    addMessage('Downloaded: avatar.jpg', 'system')
+  } catch (error) {
+    addMessage(`Failed to download avatar: ${error.message}`, 'system')
+  }
+}
+
+// Download soul package as ZIP
+const downloadSoulPackage = async () => {
+  if (!currentSoul.value) {
+    addMessage('No soul loaded. Load a soul first.', 'system')
+    return
+  }
+
+  showDownloadModal.value = false
+  addMessage(`Preparing download for ${currentSoul.value.name}...`, 'system')
+  addToDialogue(null, 'command', 'download')
+
+  try {
+    const JSZipModule = await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm')
+    const JSZip = JSZipModule.default
+    const zip = new JSZip()
+
+    // Add SOUL.md
+    if (currentSoul.value.soulContent) {
+      zip.file('SOUL.md', currentSoul.value.soulContent)
+    }
+
+    // Add IDENTITY.md
+    if (currentSoul.value.identityContent) {
+      zip.file('IDENTITY.md', currentSoul.value.identityContent)
+    }
+
+    // Fetch and add avatar
+    if (currentSoul.value.avatar) {
+      try {
+        const avatarResponse = await fetch(currentSoul.value.avatar)
+        const avatarBlob = await avatarResponse.blob()
+        zip.file('avatar.jpg', avatarBlob)
+      } catch (e) {
+        console.warn('Could not fetch avatar:', e)
+      }
+    }
+
+    // Generate and download
+    const content = await zip.generateAsync({ type: 'blob' })
+    const url = URL.createObjectURL(content)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `soul-${currentSoul.value.id}-${currentSoul.value.name.replace(/[^a-z0-9]/gi, '_')}.zip`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+
+    addMessage(`Downloaded: ${a.download}`, 'system')
+  } catch (error) {
+    console.error('Download error:', error)
+    addMessage(`Download failed: ${error.message}`, 'system')
+  }
+}
+
+// Show download modal
+const showDownload = () => {
+  if (!currentSoul.value) {
+    addMessage('No soul loaded. Load a soul first to download.', 'system')
+    return
+  }
+  showDownloadModal.value = true
+  nextTick(() => downloadFocusRef.value?.focus())
+}
+
+// Handle download modal keydown
+const handleDownloadKeydown = (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    downloadSoulPackage()
+  } else if (e.key === 'Escape') {
+    showDownloadModal.value = false
+    inputRef.value?.focus()
+  }
 }
 
 // Load soul
@@ -430,13 +634,25 @@ const searchSouls = async (term) => {
 // Chat with soul
 const chatWithSoul = async (userMessage) => {
   if (!currentSoul.value) {
-    addMessage('No soul loaded. Press Ctrl+L to load one.', 'system')
+    addMessage('No soul loaded. Press Ctrl+R to load one.', 'system')
     return
   }
+
+  // Add to dialogue log
+  addToDialogue(userMessage, 'user')
 
   isLoading.value = true
 
   try {
+    // Use clean dialogue history (only user/assistant messages)
+    const history = dialogueMessages.value
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .slice(-10)
+      .map(m => ({
+        role: m.role,
+        content: m.content
+      }))
+
     const response = await fetch(`${API_BASE}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -444,15 +660,13 @@ const chatWithSoul = async (userMessage) => {
         message: userMessage,
         soul: currentSoul.value.soulContent,
         identity: currentSoul.value.identityContent,
-        history: messages.value
-          .filter(m => m.type === 'user' || m.type === 'assistant')
-          .slice(-10)
-          .map(m => ({
-            role: m.type === 'user' ? 'user' : 'assistant',
-            content: m.content
-          }))
+        history
       })
     })
+
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}: ${response.statusText}`)
+    }
 
     const data = await response.json()
     
@@ -465,10 +679,12 @@ const chatWithSoul = async (userMessage) => {
         emoji: currentSoul.value.emoji
       })
       await streamText(data.response, msgObj.id)
+      // Add assistant response to dialogue log
+      addToDialogue(data.response, 'assistant')
     }
   } catch (error) {
     console.error('Chat error:', error)
-    addMessage(`Connection error: ${error.message}`, 'system')
+    addMessage(`Connection error: ${error.message}. Make sure the server is running on ${API_BASE}`, 'system')
   } finally {
     isLoading.value = false
   }
@@ -484,11 +700,12 @@ const showHelp = () => {
 |                                          |
 |  COMMANDS                                |
 |  Ctrl+Space    Open command palette      |
-|  Ctrl+L        Load random soul          |
+|  Ctrl+R        Load random soul          |
 |  Ctrl+I        Load soul by ID           |
 |  Ctrl+P        Print codex by soul ID    |
 |  Ctrl+S        Search souls              |
 |  Ctrl+K        List souls                |
+|  Ctrl+D        Download soul package     |
 |  Ctrl+X        Clear chat                |
 |  Escape        Close palette / Cancel    |
 |                                          |
@@ -510,6 +727,9 @@ const executeCommand = async (cmd) => {
   showCommandPalette.value = false
   commandSearch.value = ''
   
+  // Log command to dialogue (name only, not results)
+  addToDialogue(null, 'command', cmd.label)
+  
   switch (cmd.action) {
     case 'load':
       await loadSoul()
@@ -529,8 +749,12 @@ const executeCommand = async (cmd) => {
     case 'list':
       await listSouls()
       break
+    case 'download':
+      showDownload()
+      break
     case 'clear':
       messages.value = []
+      dialogueMessages.value = [] // Also clear dialogue log
       showWelcome()
       break
     case 'help':
@@ -583,11 +807,12 @@ const handleGlobalKeydown = (e) => {
   // Command shortcuts when palette is closed
   if (!showCommandPalette.value && e.ctrlKey) {
     const shortcuts = {
-      'KeyL': 'load',
+      'KeyR': 'load',
       'KeyI': 'load-id',
       'KeyP': 'print-codex',
       'KeyS': 'search',
       'KeyK': 'list',
+      'KeyD': 'download',
       'KeyX': 'clear',
     }
     
@@ -598,10 +823,19 @@ const handleGlobalKeydown = (e) => {
     }
   }
 
-  // ? for help
-  if (e.key === '?' && !showCommandPalette.value && document.activeElement !== inputRef.value) {
-    e.preventDefault()
-    showHelp()
+  // H for help, A/E for scroll mode toggle (when not typing in input)
+  if (!showCommandPalette.value && !showDownloadModal.value && document.activeElement !== inputRef.value) {
+    if (e.key === 'h' || e.key === 'H') {
+      e.preventDefault()
+      showHelp()
+    } else if (e.key === 'a' || e.key === 'A') {
+      e.preventDefault()
+      scrollMode.value = 'auto'
+      scrollToBottom(true)
+    } else if (e.key === 'e' || e.key === 'E') {
+      e.preventDefault()
+      scrollMode.value = 'explore'
+    }
   }
 }
 
@@ -644,9 +878,8 @@ const showWelcome = () => {
 |                                          |
 +------------------------------------------+
 |                                          |
-|  Press Ctrl+Space for command palette    |
-|  Press Ctrl+L to load a random soul      |
-|  Press ? for help                        |
+|  Press Ctrl+Space for command palette    |\n|  Press Ctrl+R to load a random soul      |
+|  Press H for help                        |
 |                                          |
 |  Type a message after loading a soul     |
 |  to start chatting.                      |
@@ -679,14 +912,30 @@ onUnmounted(() => {
         <span v-else class="dim">No soul loaded</span>
       </div>
       <div class="status-right">
+        <button 
+          class="scroll-mode-btn"
+          :class="{ 'explore-mode': scrollMode === 'explore' }"
+          @click="toggleScrollMode"
+          :title="scrollMode === 'auto' ? 'Auto-scroll ON (click or scroll up to explore)' : 'Explore mode (scroll to bottom to resume auto-scroll)'"
+        >
+          {{ scrollMode === 'auto' ? '[A] Auto' : '[E] Explore' }}
+        </button>
+        <button 
+          v-if="currentSoul" 
+          class="download-btn"
+          @click="showDownload"
+          title="Download SOUL.md + IDENTITY.md + avatar.jpg (Ctrl+D)"
+        >
+          [D] Download
+        </button>
         <span class="hint">Ctrl+Space: Commands</span>
         <span class="separator">|</span>
-        <span class="hint">?: Help</span>
+        <span class="hint">H: Help</span>
       </div>
     </header>
 
     <!-- Main Content -->
-    <main class="main-content" ref="messagesContainer" :class="{ 'centered': !currentSoul }">
+    <main class="main-content" ref="messagesContainer" :class="{ 'centered': !currentSoul }" @scroll="handleScroll">
       <div class="messages" :class="{ 'centered-content': !currentSoul }">
         <div 
           v-for="msg in messages" 
@@ -772,7 +1021,16 @@ onUnmounted(() => {
 
     <!-- Hint bar when no soul loaded -->
     <footer v-else class="hint-bar">
-      <span class="hint-text">Press <kbd>Ctrl+Space</kbd> for commands or <kbd>Ctrl+L</kbd> to load a random soul</span>
+      <div class="hint-boxes">
+        <div class="hint-box">
+          <kbd>Ctrl+Space</kbd>
+          <span class="hint-label">Command Palette</span>
+        </div>
+        <div class="hint-box hint-box-primary">
+          <kbd>Ctrl+R</kbd>
+          <span class="hint-label">Random Soul</span>
+        </div>
+      </div>
     </footer>
 
     <!-- Command Palette -->
@@ -805,6 +1063,63 @@ onUnmounted(() => {
               <span class="cmd-label">{{ cmd.label }}</span>
               <span class="cmd-shortcut">{{ cmd.shortcut }}</span>
             </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Download Modal -->
+    <Teleport to="body">
+      <div v-if="showDownloadModal" class="palette-overlay" @click.self="showDownloadModal = false" @keydown="handleDownloadKeydown">
+        <div class="download-modal">
+          <div class="download-header">
+            <span class="download-icon">[D]</span>
+            <span class="download-title">Download Soul Package</span>
+          </div>
+          <div class="download-content">
+            <div class="download-soul-info">
+              <img v-if="currentSoul?.avatar" :src="currentSoul.avatar" class="download-avatar" />
+              <div class="download-soul-name">{{ currentSoul?.emoji }} {{ currentSoul?.name }}</div>
+              <div class="download-soul-id">#{{ currentSoul?.id }}</div>
+            </div>
+            <div class="download-files">
+              <button 
+                class="download-file-btn" 
+                :class="{ 'disabled': !currentSoul?.soulContent }"
+                @click="downloadSoulMd"
+                title="Download SOUL.md"
+              >
+                SOUL.md
+              </button>
+              <button 
+                class="download-file-btn"
+                :class="{ 'disabled': !currentSoul?.identityContent }"
+                @click="downloadIdentityMd"
+                title="Download IDENTITY.md"
+              >
+                IDENTITY.md
+              </button>
+              <button 
+                class="download-file-btn"
+                :class="{ 'disabled': !currentSoul?.avatar }"
+                @click="downloadAvatar"
+                title="Download avatar.jpg"
+              >
+                avatar.jpg
+              </button>
+            </div>
+            <div class="download-hint">Click individual files or download all as ZIP</div>
+          </div>
+          <div class="download-actions">
+            <button 
+              ref="downloadFocusRef"
+              class="download-confirm-btn"
+              @click="downloadSoulPackage"
+              @keydown="handleDownloadKeydown"
+            >
+              Download ZIP (Enter)
+            </button>
+            <div class="download-cancel-hint">ESC to cancel</div>
           </div>
         </div>
       </div>
@@ -866,7 +1181,11 @@ onUnmounted(() => {
 .main-content {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 1rem;
+  scroll-behavior: auto;
+  /* Prevent content from causing layout shifts */
+  contain: layout style;
 }
 
 .main-content.centered {
@@ -894,7 +1213,15 @@ onUnmounted(() => {
   display: flex;
   gap: 0.5rem;
   align-items: flex-start;
-  animation: fadeIn 0.2s ease-out;
+  animation: messageSlideIn 0.3s ease-out;
+  /* Prevent layout recalculation during streaming */
+  contain: content;
+  will-change: opacity;
+}
+
+.message.streaming {
+  /* Disable animation during streaming to prevent jank */
+  animation: none;
 }
 
 .message-prefix {
@@ -956,6 +1283,11 @@ onUnmounted(() => {
   overflow-x: auto;
   margin: 0;
   white-space: pre;
+  /* Prevent height changes from causing reflow */
+  min-height: 2rem;
+  /* GPU acceleration for smoother updates */
+  transform: translateZ(0);
+  will-change: contents;
 }
 
 .cursor {
@@ -1039,24 +1371,73 @@ onUnmounted(() => {
 
 /* Hint bar (when no soul loaded) */
 .hint-bar {
-  padding: 1rem;
+  padding: 1.5rem;
   background: var(--bg-dark);
   border-top: 1px solid var(--border);
-  text-align: center;
 }
 
-.hint-text {
-  color: var(--text-dim);
-  font-size: 0.85rem;
+.hint-boxes {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  max-width: 600px;
+  margin: 0 auto;
 }
 
-.hint-text kbd {
+.hint-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.25rem 2rem;
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 0.15rem 0.4rem;
+  border-radius: 8px;
+  min-width: 180px;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+}
+
+.hint-box:hover {
+  border-color: var(--text-dim);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+.hint-box-primary {
+  border-color: var(--accent);
+  background: rgba(122, 162, 247, 0.1);
+}
+
+.hint-box-primary:hover {
+  border-color: var(--accent);
+  box-shadow: 0 4px 20px rgba(122, 162, 247, 0.2);
+}
+
+.hint-box kbd {
+  background: var(--bg-darker);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: 1rem;
+  font-weight: bold;
+  color: var(--accent);
+}
+
+.hint-box-primary kbd {
+  background: var(--accent);
+  color: var(--bg-darker);
+  border-color: var(--accent);
+}
+
+.hint-label {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.hint-box-primary .hint-label {
   color: var(--accent);
 }
 
@@ -1095,7 +1476,19 @@ onUnmounted(() => {
   justify-content: center;
   padding-top: 15vh;
   z-index: 1000;
-  animation: fadeIn 0.15s ease-out;
+  animation: overlayFadeIn 0.2s ease-out;
+  backdrop-filter: blur(4px);
+}
+
+@keyframes overlayFadeIn {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(4px);
+  }
 }
 
 .command-palette {
@@ -1106,6 +1499,18 @@ onUnmounted(() => {
   max-width: 500px;
   overflow: hidden;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  animation: paletteSlideIn 0.2s ease-out;
+}
+
+@keyframes paletteSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .palette-header {
@@ -1154,12 +1559,16 @@ onUnmounted(() => {
   gap: 0.75rem;
   padding: 0.75rem 1rem;
   cursor: pointer;
-  transition: background 0.1s;
+  transition: background 0.15s ease, transform 0.15s ease;
 }
 
 .palette-command:hover,
 .palette-command.selected {
   background: var(--bg-surface);
+}
+
+.palette-command:active {
+  transform: scale(0.98);
 }
 
 .cmd-icon {
@@ -1193,6 +1602,28 @@ onUnmounted(() => {
   }
 }
 
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  .message,
+  .data-content,
+  .palette-overlay,
+  .hint-box {
+    animation: none;
+    transition: none;
+  }
+}
+
 /* Scrollbar */
 .main-content::-webkit-scrollbar {
   width: 6px;
@@ -1209,5 +1640,201 @@ onUnmounted(() => {
 
 .main-content::-webkit-scrollbar-thumb:hover {
   background: var(--text-dim);
+}
+
+/* Scroll Mode Button */
+.scroll-mode-btn {
+  background: var(--bg-surface);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-right: 0.75rem;
+}
+
+.scroll-mode-btn:hover {
+  border-color: var(--text-dim);
+  color: var(--text-primary);
+}
+
+.scroll-mode-btn.explore-mode {
+  background: var(--secondary);
+  color: var(--bg-darker);
+  border-color: var(--secondary);
+}
+
+.scroll-mode-btn.explore-mode:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Download Button in Status Bar */
+.download-btn {
+  background: var(--accent);
+  color: var(--bg-darker);
+  border: none;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-right: 1rem;
+}
+
+.download-btn:hover {
+  background: var(--secondary);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(122, 162, 247, 0.3);
+}
+
+.download-btn:active {
+  transform: translateY(0);
+}
+
+/* Download Modal */
+.download-modal {
+  background: var(--bg-dark);
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 400px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(122, 162, 247, 0.2);
+  animation: paletteSlideIn 0.2s ease-out;
+}
+
+.download-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: var(--accent);
+  color: var(--bg-darker);
+}
+
+.download-icon {
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.download-title {
+  font-weight: bold;
+  font-size: 1rem;
+}
+
+.download-content {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.download-soul-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.download-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+  border: 2px solid var(--border);
+  object-fit: cover;
+}
+
+.download-soul-name {
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: var(--text-primary);
+}
+
+.download-soul-id {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.download-files {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.download-file-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.download-file-btn:hover:not(.disabled) {
+  background: var(--accent);
+  color: var(--bg-darker);
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(122, 162, 247, 0.3);
+}
+
+.download-file-btn.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.download-hint {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.download-actions {
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.download-confirm-btn {
+  width: 100%;
+  background: var(--accent);
+  color: var(--bg-darker);
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.download-confirm-btn:hover {
+  background: var(--secondary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(122, 162, 247, 0.4);
+}
+
+.download-confirm-btn:focus {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
+}
+
+.download-cancel-hint {
+  font-size: 0.75rem;
+  color: var(--text-dim);
 }
 </style>
