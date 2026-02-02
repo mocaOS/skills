@@ -1,0 +1,13 @@
+# Downloaded souls (user-specific)
+souls/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
