@@ -124,6 +124,26 @@ Each decc0 is a unique AI character with:
 
 [View Skill Documentation](skills/decc0/SKILL.md)
 
+## Web Interface
+
+A complete web application for chatting with decc0 characters.
+
+```bash
+cd web
+npm install
+cp .env.example .env  # Configure your LLM provider
+npm run dev:server    # Start backend (port 3001)
+npm run dev           # Start frontend (port 5173)
+```
+
+**Features**:
+- Telegram-style chat interface
+- Command dropdown for `/decc0` commands
+- Multi-provider LLM support (LiteLLM, vLLM, Compute3, Venice, OpenAI, Anthropic, Ollama)
+- Real-time soul loading with avatar display
+
+[View Web Interface Documentation](web/README.md)
+
 ## Directory Structure
 
 ```
@@ -131,6 +151,12 @@ skills/
 ├── decc0/
 │   ├── SKILL.md        # Skill definition and instructions
 │   └── protocol.md     # Open Soul Protocol specification
+│
+web/                     # Web chat interface
+├── src/App.vue         # Vue.js frontend
+├── server.js           # Express backend
+├── .env.example        # LLM provider config
+└── package.json
 │
 souls/                   # Downloaded souls (gitignored)
 └── {id}/

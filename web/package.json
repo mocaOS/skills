@@ -1,0 +1,40 @@
+{
+  "name": "decc0-web",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Interactive web interface for the decc0 Soul & Identity Loader",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:server": "node server.js",
+    "dev:all": "npm run dev:server & npm run dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "vue": "^3.5.24"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.1",
+    "autoprefixer": "^10.4.24",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
+    "vite": "^7.2.4"
+  },
+  "keywords": [
+    "decc0",
+    "moca",
+    "codex",
+    "soul",
+    "identity",
+    "llm",
+    "ai",
+    "chat"
+  ],
+  "author": "",
+  "license": "MIT"
+}
