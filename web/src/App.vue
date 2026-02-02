@@ -23,6 +23,7 @@ const isStreaming = ref(false)
 const commands = [
   { id: 'load-random', label: 'Load Random Soul', shortcut: 'Ctrl+L', action: 'load', icon: '?' },
   { id: 'load-id', label: 'Load Soul by ID', shortcut: 'Ctrl+I', action: 'load-id', icon: '#' },
+  { id: 'print-codex', label: 'Print Codex by Soul ID', shortcut: 'Ctrl+P', action: 'print-codex', icon: '@' },
   { id: 'search', label: 'Search Souls', shortcut: 'Ctrl+S', action: 'search', icon: '/' },
   { id: 'list', label: 'List Souls', shortcut: 'Ctrl+K', action: 'list', icon: '=' },
   { id: 'clear', label: 'Clear Chat', shortcut: 'Ctrl+X', action: 'clear', icon: 'x' },
@@ -178,6 +179,11 @@ const loadSoul = async (identifier) => {
       description: soul.description
     }
 
+    // Display avatar image
+    if (avatarUrl) {
+      addMessage('', 'avatar', { avatar: avatarUrl, name, emoji })
+    }
+
     // Create beautiful data display
     const dataMsg = addMessage('', 'data')
     const soulCard = `
@@ -198,6 +204,13 @@ const loadSoul = async (identifier) => {
 +------------------------------------------+`
 
     await streamText(soulCard, dataMsg.id)
+
+    // Auto-display the full codex to teach user about this soul
+    await printCodexInline(soulId, name, soulContent, identityContent, soul.description)
+
+    // Focus input after loading
+    await nextTick()
+    inputRef.value?.focus()
 
   } catch (error) {
     console.error('Error loading soul:', error)
@@ -236,6 +249,144 @@ const listSouls = async (limit = 10) => {
     await streamText(table, dataMsg.id)
   } catch (error) {
     console.error('Error listing souls:', error)
+    addMessage(`Error: ${error.message}`, 'system')
+  }
+}
+
+// Print codex inline (using already-fetched data)
+const printCodexInline = async (soulId, name, soulContent, identityContent, description) => {
+  // Parse identity fields
+  let identityFields = {}
+  if (identityContent) {
+    const lines = identityContent.split('\n')
+    lines.forEach(line => {
+      const match = line.match(/^([^:]+):\s*(.+)$/)
+      if (match) {
+        identityFields[match[1].trim()] = match[2].trim()
+      }
+    })
+  }
+
+  const dataMsg = addMessage('', 'data')
+  
+  // Build the codex display
+  let codex = `
++============================================================+
+|                    CODEX #${String(soulId).padEnd(33)}|
++============================================================+
+
+  NAME: ${name}
+  
++------------------------------------------------------------+
+|  IDENTITY                                                  |
++------------------------------------------------------------+`
+
+  // Add identity fields
+  Object.entries(identityFields).forEach(([key, value]) => {
+    const keyPad = key.substring(0, 15).padEnd(15)
+    const valPad = value.substring(0, 42)
+    codex += `\n  ${keyPad}: ${valPad}`
+  })
+
+  const soulText = soulContent || 'No soul data available'
+  const descText = description || 'No description available'
+
+  codex += `
+
++------------------------------------------------------------+
+|  SOUL                                                      |
++------------------------------------------------------------+
+${soulText.split('\n').map(line => '  ' + line.substring(0, 58)).join('\n')}
+
++------------------------------------------------------------+
+|  DESCRIPTION                                               |
++------------------------------------------------------------+
+${descText.split('\n').map(line => '  ' + line.substring(0, 58)).join('\n')}
+
++============================================================+
+|  You can now chat with this soul below.                    |
++============================================================+`
+
+  await streamText(codex, dataMsg.id)
+}
+
+// Print full codex for a soul
+const printCodex = async (soulId) => {
+  if (!soulId || isNaN(soulId)) {
+    addMessage('Invalid soul ID', 'system')
+    return
+  }
+
+  addMessage(`Fetching codex for soul #${soulId}...`, 'system')
+
+  try {
+    const response = await fetch(`${DECC0_API}/items/codex/${soulId}?fields=id,name,description,moltbot,thumbnail`)
+    const data = await response.json()
+
+    if (!data.data) {
+      addMessage(`Soul #${soulId} not found`, 'system')
+      return
+    }
+
+    const soul = data.data
+    const name = soul.name?.[0] || `Soul #${soulId}`
+    const soulContent = soul.moltbot?.['v0.1']?.soul || 'No soul data available'
+    const identityContent = soul.moltbot?.['v0.1']?.identity || 'No identity data available'
+    const description = soul.description || 'No description available'
+
+    // Parse identity fields
+    let identityFields = {}
+    if (identityContent) {
+      const lines = identityContent.split('\n')
+      lines.forEach(line => {
+        const match = line.match(/^([^:]+):\s*(.+)$/)
+        if (match) {
+          identityFields[match[1].trim()] = match[2].trim()
+        }
+      })
+    }
+
+    const dataMsg = addMessage('', 'data')
+    
+    // Build the codex display
+    let codex = `
++============================================================+
+|                         CODEX #${String(soulId).padEnd(27)}|
++============================================================+
+
+  NAME: ${name}
+  
++------------------------------------------------------------+
+|  IDENTITY                                                  |
++------------------------------------------------------------+`
+
+    // Add identity fields
+    Object.entries(identityFields).forEach(([key, value]) => {
+      const keyPad = key.substring(0, 15).padEnd(15)
+      const valPad = value.substring(0, 42)
+      codex += `\n  ${keyPad}: ${valPad}`
+    })
+
+    codex += `
+
++------------------------------------------------------------+
+|  SOUL                                                      |
++------------------------------------------------------------+
+${soulContent.split('\n').map(line => '  ' + line.substring(0, 60)).join('\n')}
+
++------------------------------------------------------------+
+|  DESCRIPTION                                               |
++------------------------------------------------------------+
+${description.split('\n').map(line => '  ' + line.substring(0, 60)).join('\n')}
+
++============================================================+
+|  End of Codex #${String(soulId).padEnd(44)}|
++============================================================+`
+
+    await streamText(codex, dataMsg.id)
+
+  } catch (error) {
+    console.error('Error fetching codex:', error)
     addMessage(`Error: ${error.message}`, 'system')
   }
 }
@@ -335,6 +486,7 @@ const showHelp = () => {
 |  Ctrl+Space    Open command palette      |
 |  Ctrl+L        Load random soul          |
 |  Ctrl+I        Load soul by ID           |
+|  Ctrl+P        Print codex by soul ID    |
 |  Ctrl+S        Search souls              |
 |  Ctrl+K        List souls                |
 |  Ctrl+X        Clear chat                |
@@ -365,6 +517,10 @@ const executeCommand = async (cmd) => {
     case 'load-id':
       const id = prompt('Enter Soul ID (1-9999) or name:')
       if (id) await loadSoul(id)
+      break
+    case 'print-codex':
+      const codexId = prompt('Enter Soul ID to print codex:')
+      if (codexId) await printCodex(parseInt(codexId))
       break
     case 'search':
       const term = prompt('Search term:')
@@ -429,6 +585,7 @@ const handleGlobalKeydown = (e) => {
     const shortcuts = {
       'KeyL': 'load',
       'KeyI': 'load-id',
+      'KeyP': 'print-codex',
       'KeyS': 'search',
       'KeyK': 'list',
       'KeyX': 'clear',
@@ -529,8 +686,8 @@ onUnmounted(() => {
     </header>
 
     <!-- Main Content -->
-    <main class="main-content" ref="messagesContainer">
-      <div class="messages">
+    <main class="main-content" ref="messagesContainer" :class="{ 'centered': !currentSoul }">
+      <div class="messages" :class="{ 'centered-content': !currentSoul }">
         <div 
           v-for="msg in messages" 
           :key="msg.id"
@@ -565,7 +722,19 @@ onUnmounted(() => {
             <pre class="data-content">{{ msg.content }}<span v-if="isStreaming && msg === messages[messages.length - 1]" class="cursor">_</span></pre>
           </template>
 
-          <div class="message-time">{{ msg.timestamp }}</div>
+          <!-- Avatar Message -->
+          <template v-else-if="msg.type === 'avatar'">
+            <div class="avatar-message">
+              <img 
+                :src="msg.meta.avatar" 
+                :alt="msg.meta.name"
+                class="soul-avatar"
+              />
+              <div class="avatar-label">{{ msg.meta.emoji }} {{ msg.meta.name }}</div>
+            </div>
+          </template>
+
+          <div class="message-time" v-if="msg.type !== 'avatar'">{{ msg.timestamp }}</div>
         </div>
 
         <!-- Loading indicator -->
@@ -578,8 +747,8 @@ onUnmounted(() => {
       </div>
     </main>
 
-    <!-- Input Area -->
-    <footer class="input-area">
+    <!-- Input Area (only shown when soul is loaded) -->
+    <footer v-if="currentSoul" class="input-area">
       <div class="input-row">
         <span class="input-prefix">&gt;</span>
         <input
@@ -599,6 +768,11 @@ onUnmounted(() => {
           Tab: {{ prompt.label }}
         </span>
       </div>
+    </footer>
+
+    <!-- Hint bar when no soul loaded -->
+    <footer v-else class="hint-bar">
+      <span class="hint-text">Press <kbd>Ctrl+Space</kbd> for commands or <kbd>Ctrl+L</kbd> to load a random soul</span>
     </footer>
 
     <!-- Command Palette -->
@@ -695,12 +869,24 @@ onUnmounted(() => {
   padding: 1rem;
 }
 
+.main-content.centered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .messages {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   max-width: 900px;
   margin: 0 auto;
+}
+
+.messages.centered-content {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
 /* Messages */
@@ -849,6 +1035,54 @@ onUnmounted(() => {
 .prompt-hint {
   font-size: 0.7rem;
   color: var(--text-dim);
+}
+
+/* Hint bar (when no soul loaded) */
+.hint-bar {
+  padding: 1rem;
+  background: var(--bg-dark);
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+
+.hint-text {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.hint-text kbd {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.15rem 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--accent);
+}
+
+/* Avatar message */
+.avatar-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.soul-avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 12px;
+  border: 2px solid var(--accent);
+  object-fit: cover;
+  box-shadow: 0 4px 20px rgba(122, 162, 247, 0.3);
+}
+
+.avatar-label {
+  color: var(--accent);
+  font-weight: bold;
+  font-size: 1.1rem;
 }
 
 /* Command Palette */
