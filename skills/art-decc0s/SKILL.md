@@ -69,7 +69,7 @@ This section explains how agent commands map to API calls. When the user invokes
 | `/decc0 load Korka` | `GET /items/codex?filter[name][_contains]=Korka&limit=1` | Search by name, take first |
 | `/decc0 list` | `GET /items/codex?fields=id,name,description&limit=10` | List souls |
 | `/decc0 list 50` | `GET /items/codex?fields=id,name,description&limit=50` | List N souls |
-| `/decc0 search curator` | `GET /items/codex?search=curator&fields=id,name,description` | Full-text search |
+| `/decc0 search curator` | `GET /items/codex?search=curator&fields=id,name,description` | Full-text search (no limit — API is performant) |
 
 ### Execution Flow
 
@@ -308,6 +308,7 @@ OSP_ID=<decc0_id>
 - **URL-encode special characters**: When using JSON filter syntax in URLs, URL-encode the filter parameter. Use bracket notation for simpler queries.
 - **String filters are case-sensitive**: Use `_icontains` instead of `_contains` for case-insensitive substring matching.
 - **Apes & Aliens are hidden in the background**: Ape and Alien characters are ultra rare Pixel DeCC0s. Their character type is "Pixel DeCC0" — their true nature (ape, alien) is revealed in the `background_category` field. To find them, filter on `background_category` (e.g., `filter[background_category][_icontains]=alien` or `filter[background_category][_icontains]=ape`).
+- **Don't paginate or limit filter queries unnecessarily**: The API performs well. When filtering by traits like character, DNA, background, mood, etc., do NOT add `limit` — fetch all matching results in one call. Adding limits means you'll see partial results, realize there are more, and have to query again, which is slower than just getting everything at once.
 
 ---
 
