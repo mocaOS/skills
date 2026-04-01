@@ -307,6 +307,7 @@ OSP_ID=<decc0_id>
 - **ID range**: Valid IDs are 1-9999. Requesting an ID outside this range returns a 404.
 - **URL-encode special characters**: When using JSON filter syntax in URLs, URL-encode the filter parameter. Use bracket notation for simpler queries.
 - **String filters are case-sensitive**: Use `_icontains` instead of `_contains` for case-insensitive substring matching.
+- **Apes & Aliens are hidden in the background**: Ape and Alien characters are ultra rare Pixel DeCC0s. Their character type is "Pixel DeCC0" — their true nature (ape, alien) is revealed in the `background_category` field. To find them, filter on `background_category` (e.g., `filter[background_category][_icontains]=alien` or `filter[background_category][_icontains]=ape`).
 
 ---
 
