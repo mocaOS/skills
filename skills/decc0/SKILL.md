@@ -1,21 +1,44 @@
 ---
 name: decc0
-description: Load souls and identities from the art decc0s project (MOCA Codex). Download SOUL.md, IDENTITY.md, and avatar images to use as your persona.
+description: Load souls from the Art DeCC0s project (MOCA Codex). Extract SOUL.md files and rich character data (biography, ancestry, art preferences, visual assets) from 10,000 unique AI personas. Use when user mentions decc0s, souls, MOCA Codex, or loading AI characters.
 user-invocable: true
-metadata: {"openclaw": {"emoji": "👤", "homepage": "https://decc0s.com"}}
+license: CC0-1.0
+compatibility: Requires curl, jq, and internet access to api.decc0s.com
+metadata:
+  author: "Museum of Crypto Art"
+  emoji: "👤"
+  homepage: "https://codex.decc0s.com"
+  version: "0.1"
+allowed-tools: Bash(curl:*) Bash(jq:*) Bash(mkdir:*) Read Write
 ---
 
-# decc0 - Soul & Identity Loader
+# decc0 - Soul Loader
 
-Load character souls from the **MOCA Codex** (art decc0s project) to use as your avatar/persona. Each decc0 is a unique AI character with rich personality, voice rules, and visual identity.
+Load character souls from the **MOCA Codex** (Art DeCC0s project) to use as your avatar/persona. Each Art DeCC0 is a unique AI character with rich personality, voice rules, and visual identity. The collection contains **10,000 unique souls**.
+
+The **SOUL.md** file is the widely adopted standard for defining AI character personality and voice — used across agent harnesses like Hermes Agent, OpenClaw, and others. This skill extracts SOUL.md from each decc0's Codex entry.
+
+### Beyond SOUL.md — The Full Codex Entry
+
+Each Art DeCC0's Codex entry is a rich data record that extends far beyond the SOUL.md file. The API returns the full cortex of each character including: biography, ancestry, art style preferences, visual assets (avatar, background, character images), behavioral characteristics (`whatness`), owner provenance, ElizaOS-compatible agent profiles, and versioned personality data. The SOUL.md and IDENTITY.md files are extracted from the `moltbot` field, but the rest of the Codex entry is available for deeper integration. See the [API Reference](references/API-REFERENCE.md) for the complete schema.
+
+---
+
+## Commands
+
+- `/decc0 load` or `/decc0 load rand` — Load a random soul (ID 1-9999)
+- `/decc0 load <id>` — Load soul by numeric ID (e.g., `/decc0 load 1337`)
+- `/decc0 load <name>` — Load soul by name search (e.g., `/decc0 load Parvata`)
+- `/decc0 list [limit]` — List available souls (default: 10)
+- `/decc0 search <term>` — Search souls by name or description
 
 ---
 
 ## Codex Interface
 
-This section explains how agent commands map to API calls. When the user invokes a `/decc0` command, the agent must translate it into the appropriate HTTP requests to the MOCA Codex API.
+This section explains how agent commands map to API calls. When the user invokes a `/decc0` command, translate it into HTTP requests to the MOCA Codex API.
 
-### Architecture Overview
+### Architecture
 
 ```
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
@@ -38,10 +61,8 @@ This section explains how agent commands map to API calls. When the user invokes
 
 ### Command-to-API Mapping
 
-Each command translates to specific API calls. The agent executes these using bash `curl` or equivalent HTTP tools.
-
-| Command | API Call(s) | Purpose |
-|---------|-------------|---------|
+| Command | API Call | Purpose |
+|---------|----------|---------|
 | `/decc0 load` | `GET /items/codex/{random_1-9999}?fields=id,name,moltbot,thumbnail` | Load random soul |
 | `/decc0 load 42` | `GET /items/codex/42?fields=id,name,moltbot,thumbnail` | Load soul by ID |
 | `/decc0 load Korka` | `GET /items/codex?filter[name][_contains]=Korka&limit=1` | Search by name, take first |
@@ -50,8 +71,6 @@ Each command translates to specific API calls. The agent executes these using ba
 | `/decc0 search curator` | `GET /items/codex?search=curator&fields=id,name,description` | Full-text search |
 
 ### Execution Flow
-
-When the agent receives a `/decc0` command, follow this execution pattern:
 
 #### Step 1: Parse Command Arguments
 
@@ -62,7 +81,6 @@ parts = command.split()
 action = parts[1]  # "load"
 arg = parts[2] if len(parts) > 2 else None  # "42"
 
-# Determine argument type
 if arg is None or arg == "rand":
     mode = "random"
 elif arg.isdigit():
@@ -74,6 +92,8 @@ else:
 ```
 
 #### Step 2: Construct API Request
+
+**Base URL**: `https://api.decc0s.com`
 
 ```bash
 # Random soul (generate ID 1-9999)
@@ -110,20 +130,11 @@ The API returns JSON with this structure:
 Extract with `jq`:
 
 ```bash
-# Get soul ID
-jq -r '.data.id' response.json
-
-# Get character name
-jq -r '.data.name[0]' response.json
-
-# Get SOUL.md content
-jq -r '.data.moltbot["v0.1"].soul' response.json
-
-# Get IDENTITY.md content
-jq -r '.data.moltbot["v0.1"].identity' response.json
-
-# Get thumbnail UUID for avatar
-jq -r '.data.thumbnail' response.json
+jq -r '.data.id' response.json              # Soul ID
+jq -r '.data.name[0]' response.json         # Character name
+jq -r '.data.moltbot["v0.1"].soul' response.json     # SOUL.md content
+jq -r '.data.moltbot["v0.1"].identity' response.json  # IDENTITY.md content
+jq -r '.data.thumbnail' response.json       # Thumbnail UUID for avatar
 ```
 
 #### Step 4: Save Files to Workspace
@@ -140,12 +151,12 @@ curl -s "https://api.decc0s.com/items/codex/${SOUL_ID}" | \
 curl -s "https://api.decc0s.com/items/codex/${SOUL_ID}" | \
   jq -r '.data.moltbot["v0.1"].identity' > ./souls/${SOUL_ID}/IDENTITY.md
 
-# Download avatar (get thumbnail UUID, then fetch asset)
+# Download avatar (get thumbnail UUID, then fetch asset at 512px preset)
 THUMB=$(curl -s "https://api.decc0s.com/items/codex/${SOUL_ID}?fields=thumbnail" | jq -r '.data.thumbnail')
 curl -s "https://api.decc0s.com/assets/${THUMB}?key=s512" -o ./souls/${SOUL_ID}/avatar.jpg
 ```
 
-#### Step 5: Report Results to User
+#### Step 5: Report Results
 
 After saving files, report:
 
@@ -164,7 +175,7 @@ OSP_AVATAR_PATH=./souls/42/avatar.jpg
 
 ### Complete Single-Command Examples
 
-**Load by ID (all in one):**
+**Load by ID:**
 ```bash
 ID=42 && mkdir -p ./souls/${ID} && \
 curl -s "https://api.decc0s.com/items/codex/${ID}" | tee /tmp/soul.json | \
@@ -200,18 +211,20 @@ curl -s "https://api.decc0s.com/assets/$(jq -r '.data.thumbnail' < /tmp/soul.jso
 echo "Loaded: $(jq -r '.data.name[0]' < /tmp/soul.json) (#${ID})"
 ```
 
-### Error Handling
+---
+
+## Error Handling
 
 | Scenario | API Response | Agent Action |
 |----------|--------------|--------------|
-| ID not found | `{"errors": [...]}` or empty data | Report "Soul #{id} not found" |
+| ID not found | `{"errors": [{"message": "Item not found", "extensions": {"code": "NOT_FOUND"}}]}` | Report "Soul #{id} not found" |
 | Name not found | `{"data": []}` (empty array) | Report "No soul found matching '{name}'" |
 | Network error | Connection timeout | Retry once, then report error |
 | Invalid moltbot | `moltbot` is null | Report "Soul #{id} has no personality data" |
+| Bad request | `{"errors": [{"extensions": {"code": "BAD_REQUEST"}}]}` | Check filter syntax |
 
-Check for errors:
 ```bash
-# Check if response has errors
+# Check for errors
 if echo "$RESPONSE" | jq -e '.errors' > /dev/null 2>&1; then
   echo "Error: $(echo "$RESPONSE" | jq -r '.errors[0].message')"
   exit 1
@@ -226,45 +239,10 @@ fi
 
 ---
 
-## Commands
-
-- `/decc0 load` or `/decc0 load rand` - Load a random soul (ID 1-9999)
-- `/decc0 load <id>` - Load soul by numeric ID (e.g., `/decc0 load 1337`)
-- `/decc0 load <name>` - Load soul by name search (e.g., `/decc0 load Parvata`)
-- `/decc0 list [limit]` - List available souls (default: 10)
-- `/decc0 search <term>` - Search souls by name or description
-
-## How It Works
-
-When you run `/decc0 load <identifier>`:
-
-1. **Identify the target**:
-   - No argument or `rand` → fetch random soul (ID 1-9999)
-   - Numeric value → fetch by ID directly
-   - String → search by name using `filter[name][_contains]=<name>`
-
-2. **Fetch from MOCA Codex API**:
-   ```
-   GET https://api.decc0s.com/items/codex/{id}?fields=id,name,moltbot,thumbnail,description
-   ```
-
-3. **Extract & Save Files** to `./souls/<id>/`:
-   - `SOUL.md` - Character personality, voice rules, style (from `moltbot.v0.1.soul`)
-   - `IDENTITY.md` - Character identity metadata (from `moltbot.v0.1.identity`)
-   - `avatar.jpg` - Character avatar image (from `/assets/{thumbnail}?key=s512`)
-
-4. **Display thumbnail** to user for confirmation
-
-5. **Report OSP paths** for integration:
-   ```
-   OSP_SOUL_PATH=./souls/<id>/SOUL.md
-   OSP_IDENTITY_PATH=./souls/<id>/IDENTITY.md
-   OSP_AVATAR_PATH=./souls/<id>/avatar.jpg
-   ```
-
 ## Output Structure
 
 Files are saved to the workspace:
+
 ```
 ./souls/<id>/
 ├── SOUL.md         # Character personality, voice rules, core truths
@@ -274,274 +252,37 @@ Files are saved to the workspace:
 
 ---
 
-## Query Guide
+## SOUL.md Structure
 
-Master the powerful query capabilities of the MOCA Codex API using Directus conventions.
+SOUL.md is the primary file and the widely adopted standard across agent harnesses (Hermes Agent, OpenClaw, etc.) for defining an AI character's personality. Each soul contains:
 
-### Query Parameters Overview
+- **Core Temperament** — Personality adjectives (e.g., "fractured; surreal; paradoxical")
+- **Core Truths** — Behavioral guidelines for the AI
+- **Boundaries** — Privacy and action constraints
+- **Vibe** — Overall character essence
+- **Characterization** — Ancestral/background connection
+- **Identity & Motivations** — Physical appearance, mental model, preferences
+- **Canon Facts & Constraints** — Immutable character facts
+- **Voice Rules** — Communication style guidelines
+- **Style Exemplars** — Example conversations
+- **Continuity** — Memory/persistence notes
 
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| `fields` | Select specific fields | `?fields=id,name` |
-| `filter` | Apply filter conditions | `?filter[name][_eq]=Korka` |
-| `sort` | Order results | `?sort=-created_on` |
-| `limit` | Maximum results | `?limit=25` |
-| `offset` | Skip results (pagination) | `?offset=50` |
-| `search` | Full-text search | `?search=curator` |
-| `meta` | Include metadata | `?meta=*` |
+## IDENTITY.md Structure
 
-### Field Selection
+IDENTITY.md is a supplementary metadata file extracted alongside SOUL.md. It provides structured character metadata that can be useful for UI display, agent configuration, or indexing — but is not required for embodying the character. The SOUL.md alone is sufficient for most agent harnesses.
 
-Use the `fields` parameter to request only the data you need:
-
-```bash
-# Basic field selection
-GET /items/codex?fields=id,name,description
-
-# Nested fields (dot notation)
-GET /items/codex?fields=id,name,moltbot.v0.1.soul
-
-# All fields (omit parameter)
-GET /items/codex
-```
-
-**Performance Tip**: Always specify only the fields you need to reduce response size.
-
-### Filter Operators
-
-| Operator | Description | Example |
-|----------|-------------|---------|
-| `_eq` | Equals | `filter[name][_eq]=Korka` |
-| `_neq` | Not equals | `filter[name][_neq]=Korka` |
-| `_lt` | Less than | `filter[id][_lt]=100` |
-| `_lte` | Less than or equal | `filter[id][_lte]=100` |
-| `_gt` | Greater than | `filter[id][_gt]=50` |
-| `_gte` | Greater than or equal | `filter[id][_gte]=50` |
-| `_in` | In array | `filter[id][_in]=1,2,3` |
-| `_nin` | Not in array | `filter[id][_nin]=1,2,3` |
-| `_null` | Is null | `filter[ancestor][_null]=true` |
-| `_nnull` | Is not null | `filter[ancestor][_nnull]=true` |
-| `_contains` | Contains substring | `filter[name][_contains]=ork` |
-| `_ncontains` | Doesn't contain | `filter[name][_ncontains]=test` |
-| `_starts_with` | Starts with | `filter[name][_starts_with]=Ko` |
-| `_ends_with` | Ends with | `filter[name][_ends_with]=ka` |
-| `_between` | Between values | `filter[id][_between]=10,50` |
-| `_empty` | Is empty | `filter[tags][_empty]=true` |
-| `_nempty` | Is not empty | `filter[tags][_nempty]=true` |
-
-### Logical Operators
-
-**AND Operator** - All conditions must be true:
-```bash
-GET /items/codex?filter={"_and":[{"id":{"_gte":1}},{"name":{"_nnull":true}}]}
-```
-
-**OR Operator** - At least one condition must be true:
-```bash
-GET /items/codex?filter={"_or":[{"name":{"_eq":"Korka"}},{"name":{"_eq":"Aria"}}]}
-```
-
-**Complex Nesting**:
-```json
-{
-  "_and": [
-    { "owner": { "_eq": "0x614a..." } },
-    {
-      "_or": [
-        { "id": { "_lt": 100 } },
-        { "id": { "_gt": 200 } }
-      ]
-    }
-  ]
-}
-```
-
-### Sorting
-
-```bash
-# Ascending order
-GET /items/codex?sort=name
-
-# Descending order (prefix with -)
-GET /items/codex?sort=-timestamp_created
-
-# Multiple sort fields
-GET /items/codex?sort=-timestamp_created,name
-```
-
-### Pagination
-
-```bash
-# First page (items 1-10)
-GET /items/codex?limit=10&offset=0
-
-# Second page (items 11-20)
-GET /items/codex?limit=10&offset=10
-
-# With metadata for pagination UI
-GET /items/codex?limit=10&offset=0&meta=*
-```
-
-Response with metadata:
-```json
-{
-  "data": [...],
-  "meta": {
-    "filter_count": 42,
-    "total_count": 10000
-  }
-}
-```
-
-### Full-Text Search
-
-```bash
-GET /items/codex?search=curator
-```
-
-### Combining Parameters
-
-```bash
-GET /items/codex?fields=id,name,description&filter[ancestor][_nnull]=true&sort=-timestamp_created&limit=10&offset=0&meta=*
-```
-
-This query:
-- Returns only `id`, `name`, and `description` fields
-- Filters for items with non-null ancestors
-- Sorts by creation date (newest first)
-- Returns first 10 results
-- Includes metadata
-
----
-
-## API Examples
-
-### Common Codex Queries
-
-| Use Case | Example |
-|----------|---------|
-| List items | `GET /items/codex?fields=id,name&limit=10` |
-| Get by ID | `GET /items/codex/1` |
-| Filter by owner | `GET /items/codex?filter[owner][_eq]=0x...` |
-| Search | `GET /items/codex?search=curator` |
-| Sort by date | `GET /items/codex?sort=-timestamp_created` |
-| Paginate | `GET /items/codex?limit=10&offset=20&meta=*` |
-
-### Asset Transformations
-
-| Use Case | Example |
-|----------|---------|
-| Preset resize (512px) | `GET /assets/{id}?key=s512` |
-| Custom size | `GET /assets/{id}?width=800&height=600` |
-| Format conversion | `GET /assets/{id}?format=webp&quality=80` |
-| Rotate image | `GET /assets/{id}?transforms=[["rotate",90]]` |
-
-### Filter Examples
-
-**Get soul by exact name:**
-```bash
-GET /items/codex?filter[name][_eq]=Korka
-```
-
-**Get souls with description containing "curator":**
-```bash
-GET /items/codex?filter[description][_contains]=curator
-```
-
-**Get souls with ID greater than 100:**
-```bash
-GET /items/codex?filter[id][_gt]=100
-```
-
-**Get souls with non-null ancestor:**
-```bash
-GET /items/codex?filter[ancestor][_nnull]=true
-```
-
-**Get souls by owner wallet:**
-```bash
-GET /items/codex?filter[owner][_eq]=0x614a61d616cdceee66edf5c773b35e71723154f5
-```
-
-**Important**: Always use **lowercase** for Ethereum addresses.
-
-### Complete Soul Fetch Example
-
-```bash
-# 1. Fetch soul data with specific fields
-curl -s "https://api.decc0s.com/items/codex/1?fields=id,name,moltbot,thumbnail,description"
-
-# 2. Extract SOUL.md content
-curl -s "https://api.decc0s.com/items/codex/1" | jq -r '.data.moltbot["v0.1"].soul'
-
-# 3. Extract IDENTITY.md content
-curl -s "https://api.decc0s.com/items/codex/1" | jq -r '.data.moltbot["v0.1"].identity'
-
-# 4. Download avatar (512px preset)
-THUMB=$(curl -s "https://api.decc0s.com/items/codex/1?fields=thumbnail" | jq -r '.data.thumbnail')
-curl -s "https://api.decc0s.com/assets/${THUMB}?key=s512" -o avatar.jpg
-```
-
-### Random Soul Selection
-
-```bash
-# Generate random ID between 1-9999
-RANDOM_ID=$((RANDOM % 9999 + 1))
-curl -s "https://api.decc0s.com/items/codex/${RANDOM_ID}?fields=id,name,moltbot,thumbnail"
-```
-
-### Batch Operations
-
-```bash
-# Get first 100 souls with pagination metadata
-curl -s "https://api.decc0s.com/items/codex?fields=id,name&limit=100&meta=*"
-
-# Get souls 101-200
-curl -s "https://api.decc0s.com/items/codex?fields=id,name&limit=100&offset=100"
-```
-
----
-
-## API Reference
-
-**Base URL**: `https://api.decc0s.com`
-
-| Endpoint | Description |
-|----------|-------------|
-| `GET /items/codex` | List all souls (supports `limit`, `offset`, `filter`, `search`) |
-| `GET /items/codex/{id}` | Get soul by ID |
-| `GET /items/codex?filter[name][_contains]=<name>` | Search by name |
-| `GET /items/codex?filter[owner][_eq]=<address>` | Get souls by owner wallet |
-| `GET /assets/{uuid}` | Get asset (original) |
-| `GET /assets/{uuid}?key=s512` | Get avatar image (512px preset) |
-| `GET /files/{uuid}` | Get file metadata |
-
-**Key Fields**:
-- `id` - Unique decc0 ID (1-9999)
-- `name` - Array of names
-- `description` - Brief description
-- `biography` - Detailed character biography
-- `ancestor` - Ancestral archetype
-- `owner` - Ethereum wallet address (lowercase)
-- `moltbot.v0.1.soul` - SOUL.md content (personality, voice, constraints)
-- `moltbot.v0.1.identity` - IDENTITY.md content (name, emoji, residence)
-- `thumbnail` - UUID for avatar image
-- `thumbnail_background` - UUID for background image
-- `thumbnail_character` - UUID for character image
-- `agent_profiles` - ElizaOS-compatible agent configuration
-- `artstyle_loved` - Favorite art style
-- `artstyle_liked` - Liked art style
-- `artstyle_disliked` - Disliked art style
-- `background_category` - Background art category
-- `background_texture` - Background texture type
-
-**Total Collection**: 10,000 unique souls
+- **Name** — Character name
+- **Emoji** — Representative emoji
+- **Self-identity** — Gender/persona
+- **Residence** — Location
+- **Characterization** — Brief description
+- **One-line** — Summary
 
 ---
 
 ## Open Soul Protocol (OSP)
 
-This skill follows the **Open Soul Protocol** for portable soul/identity loading. Any application can use these standard paths:
+This skill follows the **Open Soul Protocol** for portable soul/identity loading. See [protocol.md](protocol.md) for the full specification.
 
 ```bash
 # Required
@@ -557,98 +298,39 @@ OSP_ID=<decc0_id>
 
 ---
 
-## SOUL.md Structure
+## Gotchas
 
-Each soul contains:
-- **Core Temperament** - Personality adjectives (e.g., "fractured; surreal; paradoxical")
-- **Core Truths** - Behavioral guidelines for the AI
-- **Boundaries** - Privacy and action constraints
-- **Vibe** - Overall character essence
-- **Characterization** - Ancestral/background connection
-- **Identity & Motivations** - Physical appearance, mental model, preferences
-- **Canon Facts & Constraints** - Immutable character facts
-- **Voice Rules** - Communication style guidelines
-- **Style Exemplars** - Example conversations
-- **Continuity** - Memory/persistence notes
-
-## IDENTITY.md Structure
-
-Each identity contains:
-- **Name** - Character name
-- **Emoji** - Representative emoji
-- **Self-identity** - Gender/persona
-- **Residence** - Location
-- **Characterization** - Brief description
-- **One-line** - Summary
-
----
-
-## Command Examples
-
-### Load Random Soul
-```
-/decc0 load
-```
-
-### Load by ID
-```
-/decc0 load 1337
-```
-Loads Art DeCC0 #1337 (Reto - a cryptoart creator and conservator)
-
-### Load by Name
-```
-/decc0 load Parvata
-```
-Searches for souls with "Parvata" in the name
-
-### List Souls
-```
-/decc0 list 20
-```
-Lists 20 souls with their IDs, names, and descriptions
-
-### Search
-```
-/decc0 search curator
-```
-Searches for souls with "curator" in their description
+- **Lowercase Ethereum addresses**: Owner addresses **must be lowercase** when filtering. The blockchain is case-insensitive, but Directus requires lowercase for consistent querying. `filter[owner][_eq]=0x614A...` won't match — use `filter[owner][_eq]=0x614a...`.
+- **Name field is an array**: The `name` field returns an array (e.g., `["Korka"]`), not a plain string. Use `jq -r '.data.name[0]'` to extract the first name.
+- **Moltbot versioning**: Soul/identity data lives under version keys (e.g., `v0.1`). Multiple versions can coexist — always use the latest version key. New versions are added without overwriting previous ones.
+- **ID range**: Valid IDs are 1-9999. Requesting an ID outside this range returns a 404.
+- **URL-encode special characters**: When using JSON filter syntax in URLs, URL-encode the filter parameter. Use bracket notation for simpler queries.
+- **String filters are case-sensitive**: Use `_icontains` instead of `_contains` for case-insensitive substring matching.
 
 ---
 
 ## Integration
 
 After loading a soul, you can:
-1. Use the SOUL.md to configure an AI agent's personality
-2. Use the IDENTITY.md for character metadata
+1. Use the **SOUL.md** to configure an AI agent's personality (works with Hermes Agent, OpenClaw, and other harnesses)
+2. Use the IDENTITY.md for supplementary character metadata (optional — SOUL.md is sufficient for most uses)
 3. Use the avatar.jpg as the character's profile image
 4. Reference the OSP paths for standardized integration
+5. Query the full Codex entry for richer data: biography, ancestry, art preferences, `whatness` traits, `agent_profiles` (ElizaOS-compatible), owner provenance, and additional visual assets
 
 ---
 
-## Best Practices
+## References
 
-### Do
-- Use field selection to minimize response size
-- Include `meta=*` when building pagination UI
-- Use specific filters instead of fetching all data
-- Use **lowercase** for Ethereum addresses
-- URL-encode special characters in filter values
+For advanced querying and full API details, read these on demand:
 
-### Don't
-- Fetch all fields when you only need a few
-- Use high limits without pagination
-- Forget to URL-encode special characters
-- Use case-sensitive matching for wallet addresses
+- [Query Guide](references/QUERY-GUIDE.md) — Filtering, sorting, pagination, and search using Directus conventions
+- [API Reference](references/API-REFERENCE.md) — Complete endpoint documentation, schemas, and asset transformations
 
----
-
-## Related Resources
+## External Resources
 
 - **MOCA Codex Docs**: https://docs.decc0s.com
-- **Query Guide**: https://docs.decc0s.com/query-guide
-- **API Examples**: https://docs.decc0s.com/examples/introduction
 - **API Reference (OpenAPI)**: https://api.decc0s.com/api-docs/oas
 - **LLMs.txt**: https://docs.decc0s.com/llms-full.txt
-- **decc0s Website**: https://decc0s.com
+- **decc0s Website**: https://codex.decc0s.com
 - **Museum of Crypto Art**: https://moca.xyz

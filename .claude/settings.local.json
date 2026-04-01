@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:docs.decc0s.com)",
+      "Bash(curl -sL \"https://docs.decc0s.com/llms-full.txt\")"
+    ]
+  }
+}
