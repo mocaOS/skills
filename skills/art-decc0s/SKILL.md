@@ -1,18 +1,19 @@
 ---
-name: decc0
-description: Load souls from the Art DeCC0s project (MOCA Codex). Extract SOUL.md files and rich character data (biography, ancestry, art preferences, visual assets) from 10,000 unique AI personas. Use when user mentions decc0s, souls, MOCA Codex, or loading AI characters.
+name: art-decc0s
+description: Load souls from the Art DeCC0s project (MOCA Codex). Extract SOUL.md files and rich character data (biography, ancestry, art preferences, visual assets) from 10,000 unique AI personas. Use when user mentions decc0s, Art DeCC0s, souls, MOCA Codex, or loading AI characters.
 user-invocable: true
 license: CC0-1.0
 compatibility: Requires curl, jq, and internet access to api.decc0s.com
 metadata:
   author: "Museum of Crypto Art"
+  display-name: "Art DeCC0s"
   emoji: "👤"
   homepage: "https://codex.decc0s.com"
-  version: "0.1"
+  version: "0.2"
 allowed-tools: Bash(curl:*) Bash(jq:*) Bash(mkdir:*) Read Write
 ---
 
-# decc0 - Soul Loader
+# Art DeCC0s - Soul Loader
 
 Load character souls from the **MOCA Codex** (Art DeCC0s project) to use as your avatar/persona. Each Art DeCC0 is a unique AI character with rich personality, voice rules, and visual identity. The collection contains **10,000 unique souls**.
 

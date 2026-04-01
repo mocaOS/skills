@@ -122,7 +122,7 @@ Each decc0 is a unique AI character with:
 - Pagination and sorting support
 - Full-text search across all fields
 
-[View Skill Documentation](skills/decc0/SKILL.md)
+[View Skill Documentation](skills/art-decc0s/SKILL.md)
 
 ## Web Interface
 
@@ -185,7 +185,7 @@ OSP_VERSION=0.1
 OSP_SOURCE=decc0s
 ```
 
-[View Full Protocol Specification](skills/decc0/protocol.md)
+[View Full Protocol Specification](skills/art-decc0s/protocol.md)
 
 ## Quick Start
 

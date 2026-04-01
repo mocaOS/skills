@@ -190,8 +190,8 @@ web/
 ## Related
 
 - [MOCA Codex Docs](https://docs.decc0s.com)
-- [decc0 Skill](../skills/decc0/SKILL.md)
-- [Open Soul Protocol](../skills/decc0/protocol.md)
+- [Art DeCC0s Skill](../skills/art-decc0s/SKILL.md)
+- [Open Soul Protocol](../skills/art-decc0s/protocol.md)
 
 ## License
 
